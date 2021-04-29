@@ -25,7 +25,7 @@ from typing import Optional, Tuple
 import torch
 import torch.utils.checkpoint
 from torch import nn
-from torch.nn import CrossEntropyLoss, MSELoss
+from torch.nn import CrossEntropyLoss, MSELoss, BCELoss, Sigmoid
 
 from ...activations import ACT2FN
 from ...file_utils import (
@@ -1468,6 +1468,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
+        # self.finetuning_task = config.finetuning_task
         self.init_weights()
 
     @add_start_docstrings_to_model_forward(BERT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
@@ -1516,11 +1517,16 @@ class BertForSequenceClassification(BertPreTrainedModel):
         logits = self.classifier(pooled_output)
 
         loss = None
+        # logger.warning(f"labels {labels} num_labels {self.num_labels}")
         if labels is not None:
             if self.num_labels == 1:
                 #  We are doing regression
-                loss_fct = MSELoss()
-                loss = loss_fct(logits.view(-1), labels.view(-1))
+                # loss_fct = MSELoss()
+                # loss = loss_fct(logits.view(-1), labels.view(-1))
+                # logger.warning(f"logits.view(-1) {logits.view(-1)} labels.view(-1) {labels.view(-1)}")
+                loss_fct = BCELoss()
+                m = Sigmoid()
+                loss = loss_fct(m(logits.view(-1)), labels.view(-1))
             else:
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))

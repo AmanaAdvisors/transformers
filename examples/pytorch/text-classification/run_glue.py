@@ -57,6 +57,7 @@ task_to_keys = {
     "sst2": ("sentence", None),
     "stsb": ("sentence1", "sentence2"),
     "wnli": ("sentence1", "sentence2"),
+    #"fin-news-classification": ("sentence", None)
 }
 
 logger = logging.getLogger(__name__)
@@ -123,11 +124,13 @@ class DataTrainingArguments:
     test_file: Optional[str] = field(default=None, metadata={"help": "A csv or a json file containing the test data."})
 
     def __post_init__(self):
+        logger.warning(f"task_name {self.task_name} train_file {self.train_file} validation_file ${self.validation_file}")
         if self.task_name is not None:
             self.task_name = self.task_name.lower()
             if self.task_name not in task_to_keys.keys():
                 raise ValueError("Unknown task, you should pick one in " + ",".join(task_to_keys.keys()))
         elif self.train_file is None or self.validation_file is None:
+
             raise ValueError("Need either a GLUE task or a training/validation file.")
         else:
             train_extension = self.train_file.split(".")[-1]
@@ -239,6 +242,7 @@ def main():
     # download the dataset.
     if data_args.task_name is not None:
         # Downloading and loading a dataset from the hub.
+        logger.info(f'data_args.task_name {data_args.task_name}')
         datasets = load_dataset("glue", data_args.task_name, cache_dir=model_args.cache_dir)
     else:
         # Loading a dataset from your local files.
@@ -263,7 +267,7 @@ def main():
 
         if data_args.train_file.endswith(".csv"):
             # Loading a dataset from local csv files
-            datasets = load_dataset("csv", data_files=data_files, cache_dir=model_args.cache_dir)
+            datasets = load_dataset("csv", data_files=data_files, cache_dir=model_args.cache_dir, delimiter="\t", column_names=["sentence", "label"], skiprows=2)
         else:
             # Loading a dataset from local json files
             datasets = load_dataset("json", data_files=data_files, cache_dir=model_args.cache_dir)
@@ -276,19 +280,24 @@ def main():
         if not is_regression:
             label_list = datasets["train"].features["label"].names
             num_labels = len(label_list)
+            logger.warning("num_labels case1")
         else:
             num_labels = 1
+            logger.warning("num_labels case2")
     else:
         # Trying to have good defaults here, don't hesitate to tweak to your needs.
+        logger.warning(f'dataset dtype {datasets["train"].features["label"].dtype}')
         is_regression = datasets["train"].features["label"].dtype in ["float32", "float64"]
         if is_regression:
             num_labels = 1
+            logger.warning("num_labels case3")
         else:
             # A useful fast method:
             # https://huggingface.co/docs/datasets/package_reference/main_classes.html#datasets.Dataset.unique
             label_list = datasets["train"].unique("label")
             label_list.sort()  # Let's sort it for determinism
             num_labels = len(label_list)
+            logger.warning(f"num_labels case4 label_list {label_list}")
 
     # Load pretrained model and tokenizer
     #
